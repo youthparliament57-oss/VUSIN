@@ -78,6 +78,7 @@ fun HumanAvatar3DView(
                             ViewGroup.LayoutParams.MATCH_PARENT
                         )
                         setBackgroundColor(Color.TRANSPARENT)
+                        setLayerType(android.view.View.LAYER_TYPE_HARDWARE, null)
                         settings.javaScriptEnabled = true
                         settings.domStorageEnabled = true
                         settings.allowFileAccess = true
@@ -94,6 +95,14 @@ fun HumanAvatar3DView(
                                     "window.setAvatarState && window.setAvatarState('${avatarState.name.lowercase()}');",
                                     null
                                 )
+                            }
+
+                            override fun onRenderProcessGone(
+                                view: WebView?,
+                                detail: android.webkit.RenderProcessGoneDetail?
+                            ): Boolean {
+                                view?.destroy()
+                                return true
                             }
                         }
                         addJavascriptInterface(
