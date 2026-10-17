@@ -1,0 +1,8 @@
+{
+  "name": "VUSIN GenAI",
+  "description": "Showcase and interactive playground for the Google Gen AI Kotlin SDK (VUSIN) supporting text generation, multi-turn chat, streaming responses, multimodal prompts, and token counting.",
+  "requestFramePermissions": [],
+  "majorCapabilities": [
+    "MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"
+  ]
+}

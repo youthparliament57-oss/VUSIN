@@ -18,6 +18,9 @@ plugins {
   alias(libs.plugins.kotlin.multiplatform)
   alias(libs.plugins.kotlin.serialization)
   alias(libs.plugins.android.library)
+  alias(libs.plugins.android.application) apply false
+  alias(libs.plugins.kotlin.android) apply false
+  alias(libs.plugins.compose.compiler) apply false
   alias(libs.plugins.dokka)
   id("maven-publish")
   id("signing")

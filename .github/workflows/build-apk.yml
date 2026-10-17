@@ -1,0 +1,105 @@
+name: Build Android APK
+
+on:
+  push:
+    branches:
+      - main
+      - master
+    paths-ignore:
+      - '**.md'
+      - '.github/workflows/stale.yml'
+      - '.github/workflows/publish-kdoc.yml'
+  pull_request:
+    branches:
+      - main
+      - master
+    paths-ignore:
+      - '**.md'
+  workflow_dispatch:
+    inputs:
+      build_type:
+        description: 'Build Type to assemble'
+        required: true
+        default: 'debug'
+        type: choice
+        options:
+          - debug
+          - release
+          - all
+
+jobs:
+  build:
+    name: Assemble Android APK
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+
+      - name: Set up JDK 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: 'temurin'
+          java-version: '17'
+          cache: 'gradle'
+
+      - name: Set up Android SDK
+        uses: android-actions/setup-android@v3
+
+      - name: Ensure Debug Keystore
+        run: |
+          echo "Verifying debug keystore availability..."
+          if [ ! -f debug.keystore ]; then
+            if [ -f debug.keystore.base64 ]; then
+              echo "Restoring debug.keystore from base64 encoding..."
+              base64 -d debug.keystore.base64 > debug.keystore
+            else
+              echo "Generating new debug.keystore for CI build..."
+              keytool -genkey -v \
+                -keystore debug.keystore \
+                -alias androiddebugkey \
+                -keypass android \
+                -storepass android \
+                -keyalg RSA \
+                -keysize 2048 \
+                -validity 10000 \
+                -dname "CN=Android Debug,O=Android,C=US"
+            fi
+          fi
+          # Also copy to standard Android home folder
+          mkdir -p "$HOME/.android"
+          cp -f debug.keystore "$HOME/.android/debug.keystore" 2>/dev/null || true
+          ls -lh debug.keystore
+
+      - name: Grant Execute Permission to Gradle Wrapper
+        run: chmod +x gradlew
+
+      - name: Validate Signing Configurations
+        run: ./gradlew :app:validateSigningDebug --stacktrace
+
+      - name: Build Debug APK
+        if: ${{ github.event.inputs.build_type == 'debug' || github.event.inputs.build_type == 'all' || github.event_name != 'workflow_dispatch' }}
+        run: ./gradlew :app:assembleDebug --stacktrace
+
+      - name: Upload Debug APK Artifact
+        if: ${{ github.event.inputs.build_type == 'debug' || github.event.inputs.build_type == 'all' || github.event_name != 'workflow_dispatch' }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: vusin-ai-debug-apk
+          path: app/build/outputs/apk/debug/*.apk
+          retention-days: 14
+
+      - name: Build Release APK
+        if: ${{ github.event.inputs.build_type == 'release' || github.event.inputs.build_type == 'all' }}
+        run: ./gradlew :app:assembleRelease --stacktrace
+
+      - name: Upload Release APK Artifact
+        if: ${{ github.event.inputs.build_type == 'release' || github.event.inputs.build_type == 'all' }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: vusin-ai-release-apk
+          path: app/build/outputs/apk/release/*.apk
+          retention-days: 14

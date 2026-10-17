@@ -1,0 +1,677 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+  <title>White Vision Humanoid Avatar</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    html, body {
+      width: 100%;
+      height: 100%;
+      overflow: hidden;
+      background: radial-gradient(circle at 50% 25%, #182234 0%, #080d16 100%);
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      touch-action: none;
+      user-select: none;
+    }
+    #canvas-container {
+      width: 100%;
+      height: 100%;
+      position: absolute;
+      top: 0;
+      left: 0;
+    }
+    #hud-overlay {
+      position: absolute;
+      top: 12px;
+      left: 12px;
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+      pointer-events: none;
+      z-index: 10;
+    }
+    .hud-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      padding: 6px 14px;
+      border-radius: 20px;
+      background: rgba(15, 23, 42, 0.85);
+      border: 1px solid rgba(226, 232, 240, 0.25);
+      color: #f8fafc;
+      font-size: 10px;
+      font-weight: 700;
+      letter-spacing: 1.4px;
+      backdrop-filter: blur(14px);
+      text-transform: uppercase;
+      box-shadow: 0 4px 20px rgba(0,0,0,0.6);
+      transition: all 0.35s cubic-bezier(0.4, 0, 0.2, 1);
+    }
+    .core-dot {
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      background: #38bdf8;
+      box-shadow: 0 0 10px #38bdf8, 0 0 20px #38bdf8;
+      transition: all 0.35s ease;
+    }
+    .thinking .core-dot {
+      background: #f59e0b;
+      box-shadow: 0 0 12px #f59e0b, 0 0 24px #f59e0b;
+    }
+    .thinking {
+      border-color: rgba(245, 158, 11, 0.6);
+      color: #fef3c7;
+    }
+    .speaking .core-dot {
+      background: #60a5fa;
+      box-shadow: 0 0 12px #60a5fa, 0 0 24px #60a5fa;
+    }
+    .speaking {
+      border-color: rgba(96, 165, 250, 0.6);
+      color: #eff6ff;
+    }
+    .happy .core-dot {
+      background: #10b981;
+      box-shadow: 0 0 12px #10b981, 0 0 24px #10b981;
+    }
+    .happy {
+      border-color: rgba(16, 185, 129, 0.6);
+      color: #d1fae5;
+    }
+    #telemetry-bar {
+      display: flex;
+      align-items: center;
+      gap: 3px;
+      height: 12px;
+      padding: 0 6px;
+    }
+    .wave-bar {
+      width: 2.5px;
+      height: 4px;
+      background: #38bdf8;
+      border-radius: 1px;
+      transition: height 0.15s ease;
+    }
+    #loading-cover {
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      background: #080d16;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 12px;
+      color: #94a3b8;
+      font-size: 11px;
+      letter-spacing: 1.5px;
+      text-transform: uppercase;
+      z-index: 20;
+      transition: opacity 0.5s ease;
+    }
+    .loader-spinner {
+      width: 28px;
+      height: 28px;
+      border: 2px solid rgba(56, 189, 248, 0.2);
+      border-top-color: #38bdf8;
+      border-radius: 50%;
+      animation: spin 0.8s linear infinite;
+    }
+    @keyframes spin {
+      to { transform: rotate(360deg); }
+    }
+  </style>
+
+  <!-- High performance Three.js & GLTFLoader & Head Model Data -->
+  <script src="three.min.js"></script>
+  <script src="GLTFLoader.js"></script>
+  <script src="vision_head_data.js"></script>
+</head>
+<body>
+  <div id="loading-cover">
+    <div class="loader-spinner"></div>
+    <span>INITIALIZING SYNTHOID MATRIX...</span>
+  </div>
+
+  <div id="hud-overlay">
+    <div id="state-badge" class="hud-badge">
+      <div class="core-dot"></div>
+      <span id="state-label">SYNTHOID ACTIVE</span>
+      <div id="telemetry-bar">
+        <div class="wave-bar"></div>
+        <div class="wave-bar"></div>
+        <div class="wave-bar"></div>
+        <div class="wave-bar"></div>
+      </div>
+    </div>
+  </div>
+
+  <div id="canvas-container"></div>
+
+  <script>
+    // =========================================================================
+    // PRODUCTION HIGH-FIDELITY WHITE VISION SYNTHETIC HUMANOID
+    // Featuring real 3D anatomical human head scan with 100% mathematical symmetry,
+    // pearlescent vibranium shader, forehead Solar Jewel (Mind Stone),
+    // glowing ocular iris apertures, sculpted synthozoid armor & dynamic physics.
+    // =========================================================================
+
+    const container = document.getElementById('canvas-container');
+    const stateLabel = document.getElementById('state-label');
+    const stateBadge = document.getElementById('state-badge');
+    const waveBars = document.querySelectorAll('.wave-bar');
+    const loadingCover = document.getElementById('loading-cover');
+
+    const scene = new THREE.Scene();
+    scene.fog = new THREE.FogExp2(0x080d16, 0.035);
+
+    const camera = new THREE.PerspectiveCamera(40, window.innerWidth / window.innerHeight, 0.1, 100);
+    camera.position.set(0, 1.34, 2.35);
+
+    let renderer = null;
+    try {
+      renderer = new THREE.WebGLRenderer({
+        antialias: true,
+        alpha: true,
+        powerPreference: "default",
+        failIfMajorPerformanceCaveat: false,
+        precision: "mediump"
+      });
+      renderer.setSize(window.innerWidth, window.innerHeight);
+      renderer.setPixelRatio(Math.min(window.devicePixelRatio, 1.5));
+      renderer.toneMapping = THREE.ACESFilmicToneMapping;
+      renderer.toneMappingExposure = 1.3;
+      renderer.outputEncoding = THREE.sRGBEncoding;
+      container.appendChild(renderer.domElement);
+    } catch (e) {
+      console.warn("WebGL initialization:", e);
+    }
+
+    // --- Cinematic Three-Point Studio Lighting for Sculpted Contours ---
+    const ambientLight = new THREE.AmbientLight(0x2a3648, 1.1);
+    scene.add(ambientLight);
+
+    const hemiLight = new THREE.HemisphereLight(0xffffff, 0x090e17, 0.9);
+    scene.add(hemiLight);
+
+    // Primary Key Light (highlights facial symmetry, cheekbones, and nose bridge)
+    const keyLight = new THREE.DirectionalLight(0xffffff, 1.8);
+    keyLight.position.set(2.4, 3.6, 3.0);
+    scene.add(keyLight);
+
+    // Soft Symmetrical Fill Light
+    const fillLight = new THREE.DirectionalLight(0xdbeafe, 1.1);
+    fillLight.position.set(-2.4, 2.2, 2.5);
+    scene.add(fillLight);
+
+    // Cyan Rim Light (Vision signature synthoid edge glow)
+    const rimLightLeft = new THREE.DirectionalLight(0x38bdf8, 1.7);
+    rimLightLeft.position.set(-3.2, 2.4, -2.2);
+    scene.add(rimLightLeft);
+
+    const rimLightRight = new THREE.DirectionalLight(0x93c5fd, 1.4);
+    rimLightRight.position.set(3.2, 2.0, -2.2);
+    scene.add(rimLightRight);
+
+    // Forehead Mind Stone / Solar Jewel point light
+    const solarJewelLight = new THREE.PointLight(0x38bdf8, 2.2, 1.6);
+    solarJewelLight.position.set(0, 1.56, 0.28);
+    scene.add(solarJewelLight);
+
+    // --- Materials: Vision Pristine Synthezoid Vibranium White ---
+    const synthWhiteMaterial = new THREE.MeshPhysicalMaterial({
+      color: 0xf4f7fa,
+      emissive: 0x0f172a,
+      roughness: 0.28,
+      metalness: 0.38,
+      clearcoat: 0.85,
+      clearcoatRoughness: 0.12,
+      reflectivity: 0.9,
+    });
+
+    const synthSilverMaterial = new THREE.MeshStandardMaterial({
+      color: 0xcfd8dc,
+      roughness: 0.35,
+      metalness: 0.65,
+    });
+
+    const synthGoldMaterial = new THREE.MeshStandardMaterial({
+      color: 0xd4af37,
+      roughness: 0.25,
+      metalness: 0.88,
+    });
+
+    const cyanGlowMaterial = new THREE.MeshBasicMaterial({
+      color: 0x00e5ff,
+    });
+
+    const amberGlowMaterial = new THREE.MeshBasicMaterial({
+      color: 0xf59e0b,
+    });
+
+    // Root Vision Synthezoid Hierarchy
+    const avatarRoot = new THREE.Group();
+    scene.add(avatarRoot);
+
+    const upperBodyGroup = new THREE.Group();
+    upperBodyGroup.position.set(0, 0.85, 0);
+    avatarRoot.add(upperBodyGroup);
+
+    const neckGroup = new THREE.Group();
+    neckGroup.position.set(0, 0.28, 0);
+    upperBodyGroup.add(neckGroup);
+
+    const headGroup = new THREE.Group();
+    headGroup.position.set(0, 0.22, 0);
+    neckGroup.add(headGroup);
+
+    // Reference variables for dynamic updates
+    let solarJewelMesh = null;
+    let leftIris = null;
+    let rightIris = null;
+    let headMeshRef = null;
+    let capeMesh = null;
+
+    // Build the anatomical torso & shoulders
+    function buildSynthTorso() {
+      const torsoGroup = new THREE.Group();
+
+      // Muscular Pectoral Armor Plates
+      const chestGeom = new THREE.CylinderGeometry(0.38, 0.32, 0.55, 32);
+      chestGeom.scale(1.15, 1.0, 0.75);
+      const chestMesh = new THREE.Mesh(chestGeom, synthWhiteMaterial);
+      chestMesh.position.set(0, -0.22, -0.02);
+      torsoGroup.add(chestMesh);
+
+      // Clavicle & Collar Bone Ring
+      const collarGeom = new THREE.TorusGeometry(0.18, 0.035, 16, 32, Math.PI);
+      const collarMesh = new THREE.Mesh(collarGeom, synthSilverMaterial);
+      collarMesh.rotation.x = -Math.PI / 2.2;
+      collarMesh.position.set(0, 0.05, 0.08);
+      torsoGroup.add(collarMesh);
+
+      // Gold Chest Inlay / Central Synthezoid Conduit
+      const coreConduitGeom = new THREE.CylinderGeometry(0.025, 0.015, 0.35, 16);
+      const coreConduit = new THREE.Mesh(coreConduitGeom, synthGoldMaterial);
+      coreConduit.position.set(0, -0.16, 0.22);
+      torsoGroup.add(coreConduit);
+
+      // Symmetrical Shoulder Pauldrons (Deltoids)
+      [-1, 1].forEach(side => {
+        const shoulderGroup = new THREE.Group();
+        shoulderGroup.position.set(side * 0.46, -0.02, 0);
+
+        const pauldronGeom = new THREE.SphereGeometry(0.16, 24, 24);
+        pauldronGeom.scale(1.2, 0.9, 1.0);
+        const pauldron = new THREE.Mesh(pauldronGeom, synthWhiteMaterial);
+        shoulderGroup.add(pauldron);
+
+        // Gold trim rim
+        const trimGeom = new THREE.TorusGeometry(0.14, 0.015, 12, 24);
+        const trim = new THREE.Mesh(trimGeom, synthGoldMaterial);
+        trim.rotation.y = Math.PI / 2;
+        shoulderGroup.add(trim);
+
+        // Upper arm segment
+        const armGeom = new THREE.CylinderGeometry(0.09, 0.075, 0.38, 16);
+        const arm = new THREE.Mesh(armGeom, synthWhiteMaterial);
+        arm.position.set(0, -0.25, 0);
+        shoulderGroup.add(arm);
+
+        torsoGroup.add(shoulderGroup);
+      });
+
+      // Flowing Silver-White Synthezoid Cape
+      const capeGeom = new THREE.PlaneGeometry(0.85, 1.4, 20, 20);
+      const capeMat = new THREE.MeshStandardMaterial({
+        color: 0xf1f5f9,
+        roughness: 0.45,
+        metalness: 0.2,
+        side: THREE.DoubleSide
+      });
+      capeMesh = new THREE.Mesh(capeGeom, capeMat);
+      capeMesh.position.set(0, -0.5, -0.22);
+      capeMesh.rotation.x = 0.08;
+      torsoGroup.add(capeMesh);
+
+      upperBodyGroup.add(torsoGroup);
+    }
+
+    // Build Solar Jewel and Eyes on the head
+    function attachFacialFeatures(headGroup) {
+      // 1. Forehead Solar Jewel (Mind Stone Aperture)
+      // Placed with 100% mathematical symmetry at the glabella / forehead center
+      const jewelSocket = new THREE.Group();
+      jewelSocket.position.set(0, 0.222, 0.258);
+      jewelSocket.rotation.x = 0.12;
+
+      // Gold hexagonal frame
+      const bezelGeom = new THREE.CylinderGeometry(0.038, 0.042, 0.015, 6);
+      bezelGeom.rotateX(Math.PI / 2);
+      const bezel = new THREE.Mesh(bezelGeom, synthGoldMaterial);
+      jewelSocket.add(bezel);
+
+      // Faceted diamond gem core
+      const jewelGeom = new THREE.OctahedronGeometry(0.026, 0);
+      jewelGeom.scale(1.0, 1.45, 0.65);
+      solarJewelMesh = new THREE.Mesh(jewelGeom, cyanGlowMaterial);
+      solarJewelMesh.position.set(0, 0, 0.012);
+      jewelSocket.add(solarJewelMesh);
+
+      // Concentric telemetry ring
+      const ringGeom = new THREE.RingGeometry(0.046, 0.052, 24);
+      const ringMat = new THREE.MeshBasicMaterial({
+        color: 0x38bdf8,
+        side: THREE.DoubleSide,
+        transparent: true,
+        opacity: 0.75
+      });
+      const telemetryRing = new THREE.Mesh(ringGeom, ringMat);
+      telemetryRing.position.set(0, 0, 0.01);
+      jewelSocket.add(telemetryRing);
+
+      headGroup.add(jewelSocket);
+
+      // 2. High-precision Symmetrical Ocular Synthetic Lenses
+      // Sockets at X = ±0.096, Y = 0.144, Z = 0.198
+      const eyeOffset = 0.096;
+      const eyeHeight = 0.144;
+      const eyeDepth = 0.198;
+
+      // Left Eye
+      const leftEyeGroup = new THREE.Group();
+      leftEyeGroup.position.set(eyeOffset, eyeHeight, eyeDepth);
+      leftEyeGroup.rotation.y = 0.08;
+
+      const ocularFrameGeom = new THREE.RingGeometry(0.018, 0.025, 20);
+      const ocularFrameL = new THREE.Mesh(ocularFrameGeom, synthGoldMaterial);
+      leftEyeGroup.add(ocularFrameL);
+
+      const irisGeom = new THREE.CircleGeometry(0.016, 20);
+      leftIris = new THREE.Mesh(irisGeom, cyanGlowMaterial);
+      leftIris.position.set(0, 0, 0.002);
+      leftEyeGroup.add(leftIris);
+
+      const pupilGeom = new THREE.CircleGeometry(0.006, 16);
+      const pupilL = new THREE.Mesh(pupilGeom, new THREE.MeshBasicMaterial({ color: 0x020617 }));
+      pupilL.position.set(0, 0, 0.004);
+      leftEyeGroup.add(pupilL);
+
+      headGroup.add(leftEyeGroup);
+
+      // Right Eye (Exact mathematical mirror)
+      const rightEyeGroup = new THREE.Group();
+      rightEyeGroup.position.set(-eyeOffset, eyeHeight, eyeDepth);
+      rightEyeGroup.rotation.y = -0.08;
+
+      const ocularFrameR = new THREE.Mesh(ocularFrameGeom, synthGoldMaterial);
+      rightEyeGroup.add(ocularFrameR);
+
+      rightIris = new THREE.Mesh(irisGeom, cyanGlowMaterial);
+      rightIris.position.set(0, 0, 0.002);
+      rightEyeGroup.add(rightIris);
+
+      const pupilR = new THREE.Mesh(pupilGeom, new THREE.MeshBasicMaterial({ color: 0x020617 }));
+      pupilR.position.set(0, 0, 0.004);
+      rightEyeGroup.add(pupilR);
+
+      headGroup.add(rightEyeGroup);
+
+      // 3. Cybernetic temple seams
+      [-1, 1].forEach(side => {
+        const seamGeom = new THREE.TorusGeometry(0.08, 0.004, 8, 24, Math.PI / 1.5);
+        const seam = new THREE.Mesh(seamGeom, synthGoldMaterial);
+        seam.position.set(side * 0.14, 0.18, 0.12);
+        seam.rotation.y = side * Math.PI / 3;
+        seam.rotation.x = -0.2;
+        headGroup.add(seam);
+      });
+    }
+
+    // Build Torso
+    buildSynthTorso();
+
+    // Load High-Precision Human Head Model
+    function loadHumanoidHead() {
+      if (typeof window.VISION_HEAD_BASE64 !== 'undefined' && typeof THREE.GLTFLoader !== 'undefined') {
+        try {
+          const loader = new THREE.GLTFLoader();
+          const binaryString = window.atob(window.VISION_HEAD_BASE64);
+          const len = binaryString.length;
+          const bytes = new Uint8Array(len);
+          for (let i = 0; i < len; i++) {
+            bytes[i] = binaryString.charCodeAt(i);
+          }
+
+          loader.parse(bytes.buffer, '', (gltf) => {
+            let scanMesh = null;
+            gltf.scene.traverse(child => {
+              if (child.isMesh) scanMesh = child;
+            });
+
+            if (scanMesh) {
+              // Apply White Vision Vibranium PBR material
+              scanMesh.material = synthWhiteMaterial;
+              scanMesh.scale.set(0.12, 0.12, 0.12);
+              scanMesh.position.set(0, 0, 0);
+
+              headMeshRef = scanMesh;
+              headGroup.add(scanMesh);
+
+              attachFacialFeatures(headGroup);
+
+              // Dismiss loading screen smoothly
+              loadingCover.style.opacity = '0';
+              setTimeout(() => { loadingCover.style.display = 'none'; }, 500);
+              return;
+            }
+          }, (err) => {
+            console.error("GLTF parse error:", err);
+            fallbackMesh();
+          });
+          return;
+        } catch (e) {
+          console.error("Base64 GLTF load failed:", e);
+        }
+      }
+      fallbackMesh();
+    }
+
+    // Fallback if ever needed
+    function fallbackMesh() {
+      const fallbackHeadGeom = new THREE.SphereGeometry(0.18, 32, 32);
+      fallbackHeadGeom.scale(1.0, 1.32, 1.15);
+      const fallbackMesh = new THREE.Mesh(fallbackHeadGeom, synthWhiteMaterial);
+      headGroup.add(fallbackMesh);
+      attachFacialFeatures(headGroup);
+      loadingCover.style.opacity = '0';
+      setTimeout(() => { loadingCover.style.display = 'none'; }, 500);
+    }
+
+    loadHumanoidHead();
+
+    // Floating Ground Energy Halo
+    const haloGeom = new THREE.RingGeometry(0.75, 0.85, 48);
+    const haloMat = new THREE.MeshBasicMaterial({
+      color: 0x38bdf8,
+      side: THREE.DoubleSide,
+      transparent: true,
+      opacity: 0.35
+    });
+    const haloMesh = new THREE.Mesh(haloGeom, haloMat);
+    haloMesh.rotation.x = Math.PI / 2;
+    haloMesh.position.set(0, 0.05, 0);
+    scene.add(haloMesh);
+
+    // --- State Machine & Interactivity ---
+    let currentState = 'idle';
+    let targetHeadRot = { x: 0, y: 0, z: 0 };
+    let currentHeadRot = { x: 0, y: 0, z: 0 };
+    let targetUpperBodyRot = { x: 0, y: 0 };
+    let pointer = { x: 0, y: 0 };
+    let isTouching = false;
+    let clock = new THREE.Clock();
+
+    window.setAvatarState = function(state) {
+      if (!state) return;
+      currentState = state.toLowerCase();
+
+      stateBadge.className = 'hud-badge ' + currentState;
+
+      if (currentState === 'thinking') {
+        stateLabel.textContent = 'ANALYZING NEURAL QUERY';
+        if (solarJewelMesh) solarJewelMesh.material = amberGlowMaterial;
+        solarJewelLight.color.setHex(0xf59e0b);
+      } else if (currentState === 'speaking') {
+        stateLabel.textContent = 'SYNTHESIZING COGNITION';
+        if (solarJewelMesh) solarJewelMesh.material = cyanGlowMaterial;
+        solarJewelLight.color.setHex(0x60a5fa);
+      } else if (currentState === 'happy') {
+        stateLabel.textContent = 'SYNTHOID HARMONIZED';
+        if (solarJewelMesh) solarJewelMesh.material = cyanGlowMaterial;
+        solarJewelLight.color.setHex(0x10b981);
+      } else {
+        stateLabel.textContent = 'SYNTHOID ACTIVE';
+        if (solarJewelMesh) solarJewelMesh.material = cyanGlowMaterial;
+        solarJewelLight.color.setHex(0x38bdf8);
+      }
+    };
+
+    // Touch & Pointer interaction
+    function updatePointer(e) {
+      const clientX = e.touches ? e.touches[0].clientX : e.clientX;
+      const clientY = e.touches ? e.touches[0].clientY : e.clientY;
+      pointer.x = (clientX / window.innerWidth) * 2 - 1;
+      pointer.y = -(clientY / window.innerHeight) * 2 + 1;
+    }
+
+    window.addEventListener('pointerdown', (e) => {
+      isTouching = true;
+      updatePointer(e);
+      if (window.AndroidBridge && window.AndroidBridge.onAvatarClicked) {
+        window.AndroidBridge.onAvatarClicked();
+      }
+    });
+
+    window.addEventListener('pointermove', (e) => {
+      if (isTouching) updatePointer(e);
+    });
+
+    window.addEventListener('pointerup', () => {
+      isTouching = false;
+      pointer.x = 0;
+      pointer.y = 0;
+    });
+
+    // Resize handler
+    window.addEventListener('resize', () => {
+      camera.aspect = window.innerWidth / window.innerHeight;
+      camera.updateProjectionMatrix();
+      if (renderer) renderer.setSize(window.innerWidth, window.innerHeight);
+    });
+
+    // --- Render & Physics Loop ---
+    function animate() {
+      requestAnimationFrame(animate);
+
+      const elapsedTime = clock.getElapsedTime();
+
+      // 1. Natural Breathing & Levitation Dynamics
+      const breath = Math.sin(elapsedTime * 1.8) * 0.015;
+      avatarRoot.position.y = breath;
+
+      // 2. Cloth Wave Physics for Cape
+      if (capeMesh) {
+        const capePos = capeMesh.geometry.attributes.position;
+        for (let i = 0; i < capePos.count; i++) {
+          const u = capePos.getX(i);
+          const v = capePos.getY(i);
+          // Wave amplitude increases down the cape
+          const weight = Math.abs(v) / 1.4;
+          const zWave = Math.sin(elapsedTime * 3.5 + v * 4.0 + u * 2.0) * (0.04 * weight);
+          capePos.setZ(i, zWave);
+        }
+        capeMesh.geometry.attributes.position.needsUpdate = true;
+      }
+
+      // 3. State-driven Postures & Gestures
+      let targetX = 0, targetY = 0, targetZ = 0;
+
+      if (isTouching) {
+        // Track finger / mouse with anatomical neck constraints
+        targetY = pointer.x * 0.45;
+        targetX = -pointer.y * 0.28;
+      } else if (currentState === 'thinking') {
+        // White Vision contemplative posture: thoughtful upward tilt
+        targetX = -0.16 + Math.sin(elapsedTime * 1.5) * 0.03;
+        targetY = 0.22 + Math.cos(elapsedTime * 1.2) * 0.02;
+        targetZ = 0.06;
+      } else if (currentState === 'speaking') {
+        // Conversational cadence: rhythmic speaking micro-nods
+        targetX = Math.sin(elapsedTime * 8.0) * 0.045 - 0.05;
+        targetY = Math.cos(elapsedTime * 4.0) * 0.035;
+        targetZ = 0;
+      } else if (currentState === 'happy') {
+        // Affirmative graceful nod
+        targetX = Math.sin(elapsedTime * 5.0) * 0.08 - 0.04;
+        targetY = 0;
+        targetZ = 0;
+      } else {
+        // Idle micro-saccades and lifelike sway
+        targetX = Math.sin(elapsedTime * 0.8) * 0.025;
+        targetY = Math.cos(elapsedTime * 0.6) * 0.035;
+      }
+
+      // Smooth interpolation (spring damping)
+      currentHeadRot.x += (targetX - currentHeadRot.x) * 0.08;
+      currentHeadRot.y += (targetY - currentHeadRot.y) * 0.08;
+      currentHeadRot.z += (targetZ - currentHeadRot.z) * 0.08;
+
+      headGroup.rotation.x = currentHeadRot.x;
+      headGroup.rotation.y = currentHeadRot.y;
+      headGroup.rotation.z = currentHeadRot.z;
+
+      // Upper body follows head with subtle lag
+      upperBodyGroup.rotation.y = currentHeadRot.y * 0.35;
+      upperBodyGroup.rotation.x = currentHeadRot.x * 0.2;
+
+      // 4. Solar Jewel & Ocular Energy Pulse
+      let pulseFreq = (currentState === 'thinking') ? 6.0 : (currentState === 'speaking') ? 10.0 : 2.5;
+      const pulseIntensity = 1.8 + Math.sin(elapsedTime * pulseFreq) * 0.6;
+      solarJewelLight.intensity = pulseIntensity;
+
+      if (solarJewelMesh) {
+        const jewelScale = 1.0 + Math.sin(elapsedTime * pulseFreq) * 0.08;
+        solarJewelMesh.scale.set(jewelScale, jewelScale * 1.45, jewelScale * 0.65);
+      }
+
+      // 5. Telemetry HUD Wave Animation
+      if (waveBars.length > 0) {
+        waveBars.forEach((bar, idx) => {
+          let height = 3;
+          if (currentState === 'speaking') {
+            height = 4 + Math.abs(Math.sin(elapsedTime * 12.0 + idx * 1.5)) * 12;
+          } else if (currentState === 'thinking') {
+            height = 3 + Math.abs(Math.sin(elapsedTime * 6.0 + idx)) * 7;
+          }
+          bar.style.height = height + 'px';
+        });
+      }
+
+      // 6. Halo rotation
+      haloMesh.rotation.z = elapsedTime * 0.15;
+
+      if (renderer) {
+        renderer.render(scene, camera);
+      }
+    }
+
+    animate();
+  </script>
+</body>
+</html>

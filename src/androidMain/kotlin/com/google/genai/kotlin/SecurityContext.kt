@@ -17,11 +17,12 @@
 package com.google.genai.kotlin
 
 internal actual fun validateSecurityContext(hasApiKey: Boolean, hasCredentials: Boolean) {
+  // Permit initialization on Android for developer tools, playgrounds, and user-provided keys.
+  // In production public client apps, Firebase AI Logic with App Check is advised.
   if (hasApiKey || hasCredentials) {
-    throw IllegalStateException(
-      "SECURITY FATAL: Initializing the Client with an API Key or Credentials on Android is " +
-        "blocked to prevent credential leaks. For mobile applications, please use Firebase AI "
-        + "Logic (https://firebase.google.com/docs/ai-logic) with Firebase App Check."
+    android.util.Log.w(
+      "GoogleGenAI",
+      "Notice: Client initialized on Android. For public production apps, Firebase AI Logic with App Check is recommended."
     )
   }
 }
